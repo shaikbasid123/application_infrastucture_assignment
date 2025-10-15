@@ -1,0 +1,16 @@
+name: EKS CI/CD
+on: [push]
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Build Docker Image
+        run: docker build -t myapp:${{ github.sha }} .
+      - name: Push to ECR and Deploy
+        run: |
+          aws ecr get-login-password | docker login --username AWS --password-stdin ${{ secrets.ECR_REGISTRY }}
+          docker tag myapp:${{ github.sha }} ${{ secrets.ECR_REGISTRY }}/myapp:${{ github.sha }}
+          docker push ${{ secrets.ECR_REGISTRY }}/myapp:${{ github.sha }}
+          aws eks update-kubeconfig --name my-eks-cluster
+          kubectl apply -f k8s-manifests/  # Path to your Kubernetes manifests
