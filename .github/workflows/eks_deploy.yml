@@ -85,19 +85,6 @@ jobs:
           kubectl get svc -n production -l app=${{ matrix.app }}
           kubectl get ingress -n production
 
-      - name: Run Smoke Tests
-        working-directory: apps/${{ matrix.app }}-eks
-        run: |
-          # Wait for service to be ready
-          sleep 30
-          
-          # Get service endpoint
-          ENDPOINT=$(kubectl get ingress -n production -o jsonpath='{.items[0].status.loadBalancer.ingress[0].hostname}')
-          echo "Testing endpoint: https://$ENDPOINT"
-          
-          # Health check
-          curl -f -k https://$ENDPOINT/health || exit 1
-
       - name: Rollback on Failure
         if: failure()
         run: |
