@@ -1,6 +1,6 @@
 The diagram shows two databases in the Database Subnets (10.0.30.0/24 and 10.0.31.0/24), with connections secured via Security Groups, private subnets. Here's a detailed breakdown:
 
-Connection for RDS SQL Server (for App1, App2, App3):
+Connection for SQL Server (for App1, App2, App3):
 Source of Connection:
 App1, App2, and App3 are running as pods in the EKS cluster (in EKS Private Subnets: 10.0.10.0/24, 10.0.11.0/24, 10.0.12.0/24).
 These pods communicate with the RDS SQL Server via ClusterIP Services (e.g., app1-svc:8080, app2-svc:8081, app3-svc:8082) and the EKS Ingress (which routes traffic internally).
@@ -20,7 +20,7 @@ RDS SQL SG: Allows inbound traffic on port 1433 only from EKS Node SG. This rest
 Additional Controls: Network Policies in the EKS cluster enforce pod-to-pod communication and DB access.
 Authentication: Applications use credentials stored in AWS Secrets Manager to authenticate.
 
-Connection for RDS Oracle (for App4, App5)
+Connection for Oracle (for App4, App5):
 Source of Connection:
 App4 and App5 are hosted on Windows Server 2022 EC2 instances (in Windows Private Subnets: 10.0.20.0/24 and 10.0.21.0/24).
 These instances (e.g., IP: 10.0.20.10 for App4 and 10.0.21.10 for App5) run IIS 10.0 and use the Oracle Client (ODAC) to connect to the database.
