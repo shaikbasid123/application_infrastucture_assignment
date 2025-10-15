@@ -1,0 +1,11 @@
+name: Windows CI/CD
+on: [push]
+jobs:
+  build-and-deploy:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Build .NET App
+        run: dotnet build
+      - name: Deploy to EC2
+        run: aws ssm send-command --instance-ids ${{ secrets.EC2_INSTANCE_ID }} --document-name "AWS-RunPowerShellScript" --parameters '{"commands":["powershell.exe -File deploy-script.ps1"]}'
