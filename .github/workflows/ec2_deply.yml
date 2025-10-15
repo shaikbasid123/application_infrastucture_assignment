@@ -1,11 +1,89 @@
-name: Windows CI/CD
-on: [push]
+name: Deploy Windows Apps
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/app4-windows/**'
+      - 'apps/app5-windows/**'
+
+env:
+  AWS_REGION: us-east-1
+  S3_BUCKET: deployments-bucket
+
 jobs:
-  build-and-deploy:
+  build:
     runs-on: windows-latest
+    strategy:
+      matrix:
+        app: [app4, app5]
+
     steps:
-      - uses: actions/checkout@v2
-      - name: Build .NET App
-        run: dotnet build
-      - name: Deploy to EC2
-        run: aws ssm send-command --instance-ids ${{ secrets.EC2_INSTANCE_ID }} --document-name "AWS-RunPowerShellScript" --parameters '{"commands":["powershell.exe -File deploy-script.ps1"]}'
+      - uses: actions/checkout@v4
+      - uses: microsoft/setup-msbuild@v1
+      - uses: NuGet/setup-nuget@v1
+
+      - name: Restore & Build
+        run: |
+          cd apps/${{ matrix.app }}-windows
+          nuget restore
+          msbuild /p:Configuration=Release /p:Platform="Any CPU"
+          msbuild /t:Publish /p:Configuration=Release
+
+      - name: Package & Upload
+        run: |
+          cd apps/${{ matrix.app }}-windows
+          Compress-Archive -Path bin/Release/Publish/* -DestinationPath ${{ matrix.app }}-${{ github.sha }}.zip
+        shell: pwsh
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: ${{ matrix.app }}-package
+          path: apps/${{ matrix.app }}-windows/${{ matrix.app }}-${{ github.sha }}.zip
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        app: [app4, app5]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: actions/download-artifact@v3
+        with:
+          name: ${{ matrix.app }}-package
+
+      - name: Upload to S3
+        run: aws s3 cp ${{ matrix.app }}-${{ github.sha }}.zip s3://${{ env.S3_BUCKET }}/windows/${{ matrix.app }}/${{ github.sha }}.zip
+
+      - name: Deploy via SSM
+        run: |
+          INSTANCES=$(aws ec2 describe-instances \
+            --filters "Name=tag:Application,Values=${{ matrix.app }}" "Name=instance-state-name,Values=running" \
+            --query 'Reservations[].Instances[].InstanceId' --output text)
+          
+          for id in $INSTANCES; do
+            echo "Deploying to $id"
+            aws ssm send-command \
+              --instance-ids "$id" \
+              --document-name "AWS-RunPowerShellScript" \
+              --parameters 'commands=[
+                "aws s3 cp s3://${{ env.S3_BUCKET }}/windows/${{ matrix.app }}/${{ github.sha }}.zip C:\\Temp\\app.zip",
+                "Expand-Archive -Path C:\\Temp\\app.zip -DestinationPath C:\\inetpub\\wwwroot\\${{ matrix.app }} -Force",
+                "iisreset"
+              ]'
+          done
+
+      - name: Verify Deployment
+        run: |
+          ALB_DNS=$(aws elbv2 describe-load-balancers --names "multi-app-infra-windows" \
+            --query 'LoadBalancers[0].DNSName' --output text)
+          curl -f "http://$ALB_DNS/${{ matrix.app }}/health"
