@@ -33,3 +33,6 @@ The migration will be executed in phases.
     * Monitor with CloudWatch and optimize resources (auto-scaling for EKS).
     * Incident response: Set up alerts and response.
     * Milestones: Once full migration complete, hand over to operations team.
+
+
+Refer Link for Slide:https://drive.google.com/file/d/1FUNVKGF2XUoOVm8OI-Qp9i6jriMlZyVzjQI5cuBQpTI/view
